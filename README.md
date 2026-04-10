@@ -1,7 +1,10 @@
 # Figma to QML Plugin
 
-Convert Figma designs to QML code for Qt applications.
+![License](https://img.shields.io/badge/license-MIT-blue)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)
+![Figma](https://img.shields.io/badge/Figma-Plugin-green)
 
+Convert Figma designs to QML code for Qt applications.
 
 ## Features
 
@@ -36,7 +39,3 @@ Convert Figma designs to QML code for Qt applications.
 ## License
 
 🔗 **GitHub:** [github.com/Klabel3/figma-to-qml](https://github.com/Klabel3/FigmaToQmlPlugin.git)
-
-![License](https://img.shields.io/badge/license-MIT-blue)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)
-![Figma](https://img.shields.io/badge/Figma-Plugin-green)

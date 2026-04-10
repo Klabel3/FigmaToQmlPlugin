@@ -2,6 +2,7 @@
 
 Convert Figma designs to QML code for Qt applications.
 
+
 ## Features
 
 - 🔵 **Rectangle** → QML Rectangle (color, border, radius, shadow)
@@ -34,4 +35,8 @@ Convert Figma designs to QML code for Qt applications.
 
 ## License
 
-MIT
+🔗 **GitHub:** [github.com/Klabel3/figma-to-qml](https://github.com/Klabel3/FigmaToQmlPlugin.git)
+
+![License](https://img.shields.io/badge/license-MIT-blue)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)
+![Figma](https://img.shields.io/badge/Figma-Plugin-green)

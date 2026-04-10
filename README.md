@@ -4,6 +4,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)
 ![Figma](https://img.shields.io/badge/Figma-Plugin-green)
 
+🔗 **GitHub:** [github.com/Klabel3/figma-to-qml](https://github.com/Klabel3/FigmaToQmlPlugin.git)
 Convert Figma designs to QML code for Qt applications.
 
 ## Features
@@ -35,7 +36,3 @@ Convert Figma designs to QML code for Qt applications.
 - [ ] Auto Layout (RowLayout / ColumnLayout)
 - [ ] Gradients support
 - [ ] AI-powered animation generation (Pro version)
-
-## License
-
-🔗 **GitHub:** [github.com/Klabel3/figma-to-qml](https://github.com/Klabel3/FigmaToQmlPlugin.git)

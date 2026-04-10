@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <style>
+    body {
+      padding: 16px;
+      font-family: system-ui, sans-serif;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+
+    .primary-btn {
+      background: #18A0FB;
+    }
+
+    .primary-btn:hover {
+      background: #0d8ce0;
+    }
+
+    .save-btn {
+      background: #2C3E50;
+    }
+
+    .save-btn:hover {
+      background: #1a2632;
+    }
+
+    .info,
+    .qml {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 13px;
+      white-space: pre-wrap;
+      max-height: 300px;
+      overflow: auto;
+    }
+
+    .info {
+      background: #f5f5f5;
+    }
+
+    .qml {
+      background: #1e1e1e;
+      color: #d4d4d4;
+    }
+
+    .label {
+      font-size: 11px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #666;
+    }
+
+    .success {
+      background: #4CAF50;
+      color: white;
+      padding: 8px;
+      border-radius: 4px;
+      text-align: center;
+      margin-top: 8px;
+      display: none;
+    }
+
+    .error {
+      background: #f44336;
+      color: white;
+      padding: 8px;
+      border-radius: 4px;
+      text-align: center;
+      margin-top: 8px;
+      display: none;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .button-group button {
+      flex: 1;
+      margin-bottom: 0;
+    }
+  </style>
+</head>
+
+<body>
+  <button id="btn" class="primary-btn">🔍 Получить выделенный элемент</button>
+
+  <div id="buttonGroup" class="button-group" style="display: none;">
+    <button id="copyBtn" class="primary-btn">📋 Копировать QML</button>
+    <button id="saveBtn" class="save-btn">💾 Сохранить в файл</button>
+  </div>
+
+  <div class="label">📋 Информация</div>
+  <div id="info" class="info">Нажми на кнопку</div>
+
+  <div id="qmlContainer" style="display: none;">
+    <div class="label" style="margin-top: 16px;">🎯 QML код</div>
+    <div id="qml" class="qml"></div>
+  </div>
+
+  <div id="successMsg" class="success">✅ Скопировано!</div>
+  <div id="errorMsg" class="error">❌ Ошибка</div>
+
+  <!-- Скрытая textarea для копирования -->
+  <textarea id="hiddenTextarea" style="position: fixed; top: -1000px; left: -1000px;"></textarea>
+
+  <script>
+    const btn = document.getElementById('btn');
+    const copyBtn = document.getElementById('copyBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const buttonGroup = document.getElementById('buttonGroup');
+    const infoDiv = document.getElementById('info');
+    const qmlContainer = document.getElementById('qmlContainer');
+    const qmlDiv = document.getElementById('qml');
+    const successMsg = document.getElementById('successMsg');
+    const errorMsg = document.getElementById('errorMsg');
+    const hiddenTextarea = document.getElementById('hiddenTextarea');
+
+    let currentQML = '';
+    let currentNodeName = '';
+
+    function copyToClipboard(text) {
+      hiddenTextarea.value = text;
+      hiddenTextarea.select();
+      const success = document.execCommand('copy');
+      hiddenTextarea.value = '';
+      return success;
+    }
+
+    function showSuccess(text) {
+      successMsg.innerHTML = text;
+      successMsg.style.display = 'block';
+      errorMsg.style.display = 'none';
+      setTimeout(() => { successMsg.style.display = 'none'; }, 2000);
+    }
+
+    function showError(text) {
+      errorMsg.innerHTML = text;
+      errorMsg.style.display = 'block';
+      successMsg.style.display = 'none';
+      setTimeout(() => { errorMsg.style.display = 'none'; }, 2000);
+    }
+
+    btn.onclick = () => {
+      infoDiv.innerHTML = '⏳ Загрузка...';
+      qmlContainer.style.display = 'none';
+      buttonGroup.style.display = 'none';
+      successMsg.style.display = 'none';
+      errorMsg.style.display = 'none';
+      parent.postMessage({ pluginMessage: { type: 'get-selection' } }, '*');
+    };
+
+    copyBtn.onclick = () => {
+      if (currentQML && currentQML.length > 0) {
+        const success = copyToClipboard(currentQML);
+        if (success) {
+          showSuccess('✅ QML скопирован!');
+        } else {
+          showError('❌ Ошибка копирования');
+        }
+      } else {
+        showError('❌ Нет QML для копирования');
+      }
+    };
+
+    saveBtn.onclick = () => {
+      if (currentQML && currentQML.length > 0) {
+        const blob = new Blob([currentQML], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${currentNodeName}.qml`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showSuccess('✅ Файл сохранён!');
+      } else {
+        showError('❌ Нет QML для сохранения');
+      }
+    };
+
+    window.onmessage = (event) => {
+      const msg = event.data.pluginMessage;
+      console.log('Получено сообщение:', msg);
+
+      if (msg?.type === 'selection-info') {
+        infoDiv.innerHTML = msg.info;
+
+        if (msg.qml && msg.qml.length > 0) {
+          currentQML = msg.qml;
+          currentNodeName = msg.nodeName || 'component';
+          qmlDiv.innerHTML = msg.qml;
+          qmlContainer.style.display = 'block';
+          buttonGroup.style.display = 'flex';
+          console.log('QML сохранён, длина:', currentQML.length);
+        } else {
+          currentQML = '';
+          buttonGroup.style.display = 'none';
+          console.log('QML пуст');
+        }
+      }
+    };
+  </script>
+</body>
+
+</html>

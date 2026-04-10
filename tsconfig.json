@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "target": "ES6",
+    "strict": true,
+    "moduleResolution": "bundler",
+    "types": ["@figma/plugin-typings"],
+    "lib": ["ES2017"],
+    "skipLibCheck": true,
+    "ignoreDeprecations": "6.0"
+  },
+  "include": ["./code.ts"]
+}

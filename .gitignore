@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build output (если используешь dist папку)
+dist/
+*.js.map
+
+# TypeScript build output (если компилируешь в ту же папку)
+code.js
+code.js.map
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+
+# Figma development (локальные настройки плагина)
+*.figma_plugin_*

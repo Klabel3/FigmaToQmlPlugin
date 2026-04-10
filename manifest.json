@@ -1,0 +1,8 @@
+{
+  "name": "Figma to QML",
+  "id": "figma-to-qml",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figma"]
+}

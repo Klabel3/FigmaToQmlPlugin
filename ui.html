@@ -94,10 +94,26 @@
       flex: 1;
       margin-bottom: 0;
     }
+
+    select {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 16px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 13px;
+    }
   </style>
 </head>
 
 <body>
+  <div class="label">⚙️ Настройки генерации</div>
+  <select id="qtVersion">
+    <option value="6.7">Qt 6.7+ (отдельные радиусы углов)</option>
+    <option value="6.0" selected>Qt 6.0-6.6 (стандартный радиус)</option>
+    <option value="5.15">Qt 5.15 (LTS)</option>
+  </select>
+
   <button id="btn" class="primary-btn">🔍 Получить выделенный элемент</button>
 
   <div id="buttonGroup" class="button-group" style="display: none;">
@@ -130,6 +146,7 @@
     const successMsg = document.getElementById('successMsg');
     const errorMsg = document.getElementById('errorMsg');
     const hiddenTextarea = document.getElementById('hiddenTextarea');
+    const qtVersionSelect = document.getElementById('qtVersion');
 
     let currentQML = '';
     let currentNodeName = '';
@@ -162,7 +179,12 @@
       buttonGroup.style.display = 'none';
       successMsg.style.display = 'none';
       errorMsg.style.display = 'none';
-      parent.postMessage({ pluginMessage: { type: 'get-selection' } }, '*');
+      parent.postMessage({
+        pluginMessage: {
+          type: 'get-selection',
+          qtVersion: qtVersionSelect.value
+        }
+      }, '*');
     };
 
     copyBtn.onclick = () => {

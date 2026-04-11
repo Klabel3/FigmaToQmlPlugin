@@ -5,6 +5,7 @@
 ![Figma](https://img.shields.io/badge/Figma-Plugin-green)
 
 🔗 **GitHub:** [github.com/Klabel3/figma-to-qml](https://github.com/Klabel3/FigmaToQmlPlugin.git)
+
 Convert Figma designs to QML code for Qt applications.
 
 ## Features

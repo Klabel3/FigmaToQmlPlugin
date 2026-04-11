@@ -1,4 +1,4 @@
-figma.showUI(__html__, { width: 400, height: 550 });
+figma.showUI(__html__, { width: 400, height: 580 });
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 
@@ -126,9 +126,77 @@ DropShadow {
 }`;
 }
 
+// ========== РАДИУСЫ (С УЧЁТОМ ВЕРСИИ QT) ==========
+
+function getRadius(node: RectangleNode, qtVersion: string): {
+    topLeft: number | null;
+    topRight: number | null;
+    bottomLeft: number | null;
+    bottomRight: number | null;
+    useIndividualRadii: boolean;
+    warning: string | null;
+} {
+    const result = {
+        topLeft: null as number | null,
+        topRight: null as number | null,
+        bottomLeft: null as number | null,
+        bottomRight: null as number | null,
+        useIndividualRadii: false,
+        warning: null as string | null
+    };
+
+    const supportsIndividualRadii = qtVersion >= '6.7';
+
+    if (supportsIndividualRadii && 'topLeftRadius' in node) {
+        const tl = node.topLeftRadius;
+        const tr = node.topRightRadius;
+        const bl = node.bottomLeftRadius;
+        const br = node.bottomRightRadius;
+
+        // Если все радиусы одинаковые и больше 0
+        if (tl !== undefined && tr !== undefined && bl !== undefined && br !== undefined &&
+            tl === tr && tl === bl && tl === br && tl > 0) {
+            result.topLeft = tl;
+            return result;
+        }
+
+        // Если есть разные радиусы
+        if ((tl !== undefined && tl > 0) || (tr !== undefined && tr > 0) ||
+            (bl !== undefined && bl > 0) || (br !== undefined && br > 0)) {
+            result.useIndividualRadii = true;
+            result.topLeft = (tl !== undefined && tl > 0) ? tl : null;
+            result.topRight = (tr !== undefined && tr > 0) ? tr : null;
+            result.bottomLeft = (bl !== undefined && bl > 0) ? bl : null;
+            result.bottomRight = (br !== undefined && br > 0) ? br : null;
+            return result;
+        }
+    }
+
+    // Fallback к старому способу
+    const cornerRadius = node.cornerRadius;
+    if (cornerRadius && cornerRadius !== figma.mixed && cornerRadius > 0) {
+        result.topLeft = cornerRadius;
+    } else if (cornerRadius === 0 || cornerRadius === figma.mixed) {
+        // Проверяем, есть ли разные радиусы в старых версиях Qt
+        if ('topLeftRadius' in node) {
+            const tl = node.topLeftRadius;
+            const tr = node.topRightRadius;
+            const bl = node.bottomLeftRadius;
+            const br = node.bottomRightRadius;
+
+            if ((tl !== undefined && tl > 0) || (tr !== undefined && tr > 0) ||
+                (bl !== undefined && bl > 0) || (br !== undefined && br > 0)) {
+                result.warning = `    // WARNING: Different corner radii detected (tl:${tl || 0}, tr:${tr || 0}, bl:${bl || 0}, br:${br || 0})\n    // Your Qt version (${qtVersion}) doesn't support individual corner radii\n    // Consider upgrading to Qt 6.7+ or manually implement using Shape\n`;
+            }
+        }
+    }
+
+    return result;
+}
+
 // ========== ГЕНЕРАТОРЫ КОМПОНЕНТОВ ==========
 
-function rectangleToQML(node: RectangleNode): string {
+function rectangleToQML(node: RectangleNode, qtVersion: string): string {
     const idName = cleanNodeName(node.name);
     let qml = `Rectangle {\n`;
     qml += `    id: ${idName}\n`;
@@ -144,9 +212,18 @@ function rectangleToQML(node: RectangleNode): string {
         qml += `    border.width: ${border.width}\n`;
     }
 
-    const cornerRadius = node.cornerRadius;
-    if (cornerRadius && cornerRadius !== figma.mixed && cornerRadius > 0) {
-        qml += `    radius: ${cornerRadius}\n`;
+    // Радиусы с учётом версии Qt
+    const radius = getRadius(node, qtVersion);
+    if (radius.warning) {
+        qml += radius.warning;
+    }
+    if (radius.useIndividualRadii) {
+        if (radius.topLeft !== null) qml += `    topLeftRadius: ${radius.topLeft}\n`;
+        if (radius.topRight !== null) qml += `    topRightRadius: ${radius.topRight}\n`;
+        if (radius.bottomLeft !== null) qml += `    bottomLeftRadius: ${radius.bottomLeft}\n`;
+        if (radius.bottomRight !== null) qml += `    bottomRightRadius: ${radius.bottomRight}\n`;
+    } else if (radius.topLeft !== null) {
+        qml += `    radius: ${radius.topLeft}\n`;
     }
 
     const shadow = getShadowParams(node);
@@ -158,7 +235,7 @@ function rectangleToQML(node: RectangleNode): string {
     return qml;
 }
 
-function textToQML(node: TextNode): string {
+function textToQML(node: TextNode, qtVersion: string): string {
     const idName = cleanNodeName(node.name);
     let qml = `Text {\n`;
     qml += `    id: ${idName}\n`;
@@ -186,7 +263,7 @@ function textToQML(node: TextNode): string {
     return qml;
 }
 
-function lineToQML(node: LineNode): string {
+function lineToQML(node: LineNode, qtVersion: string): string {
     const idName = cleanNodeName(node.name);
     let qml = `Rectangle {\n`;
     qml += `    id: ${idName}\n`;
@@ -215,7 +292,7 @@ function lineToQML(node: LineNode): string {
     return qml;
 }
 
-function ellipseToQML(node: EllipseNode): string {
+function ellipseToQML(node: EllipseNode, qtVersion: string): string {
     const idName = cleanNodeName(node.name);
     let qml = `Rectangle {\n`;
     qml += `    id: ${idName}\n`;
@@ -241,11 +318,19 @@ function ellipseToQML(node: EllipseNode): string {
     return qml;
 }
 
-function getRequiredImports(qmlCode: string): string {
-    let imports = 'import QtQuick 6.0\n';
+function getRequiredImports(qmlCode: string, qtVersion: string): string {
+    // Определяем правильный импорт в зависимости от версии
+    let imports = '';
+    if (qtVersion.startsWith('5.')) {
+        imports = `import QtQuick ${qtVersion}\n`;
+    } else {
+        imports = `import QtQuick ${qtVersion}\n`;
+    }
+
     if (qmlCode.includes('DropShadow')) {
         imports += 'import QtGraphicalEffects 1.15\n';
     }
+
     return imports;
 }
 
@@ -254,6 +339,7 @@ function getRequiredImports(qmlCode: string): string {
 figma.ui.onmessage = (msg) => {
     if (msg.type === 'get-selection') {
         const selection = figma.currentPage.selection;
+        const qtVersion = msg.qtVersion || '6.0';
 
         if (selection.length === 0) {
             figma.ui.postMessage({
@@ -269,19 +355,19 @@ figma.ui.onmessage = (msg) => {
 
         switch (node.type) {
             case 'RECTANGLE':
-                qml = rectangleToQML(node as RectangleNode);
+                qml = rectangleToQML(node as RectangleNode, qtVersion);
                 info += '✅ Прямоугольник → QML:\n\n';
                 break;
             case 'TEXT':
-                qml = textToQML(node as TextNode);
+                qml = textToQML(node as TextNode, qtVersion);
                 info += '✅ Текст → QML:\n\n';
                 break;
             case 'LINE':
-                qml = lineToQML(node as LineNode);
+                qml = lineToQML(node as LineNode, qtVersion);
                 info += '✅ Линия → QML:\n\n';
                 break;
             case 'ELLIPSE':
-                qml = ellipseToQML(node as EllipseNode);
+                qml = ellipseToQML(node as EllipseNode, qtVersion);
                 info += '✅ Круг/Эллипс → QML:\n\n';
                 break;
             default:
@@ -289,13 +375,14 @@ figma.ui.onmessage = (msg) => {
                 info += 'Выберите подходящий элемент.';
         }
 
-        const fullQml = qml ? getRequiredImports(qml) + '\n' + qml : qml;
+        const fullQml = qml ? getRequiredImports(qml, qtVersion) + '\n' + qml : qml;
 
         figma.ui.postMessage({
             type: 'selection-info',
             info: info,
             qml: fullQml,
-            nodeName: node.name
+            nodeName: node.name,
+            qtVersion: qtVersion
         });
     }
 };

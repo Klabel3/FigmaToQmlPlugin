@@ -37,3 +37,16 @@ Convert Figma designs to QML code for Qt applications.
 - [ ] Auto Layout (RowLayout / ColumnLayout)
 - [ ] Gradients support
 - [ ] AI-powered animation generation (Pro version)
+
+
+## ⚠️ Known Limitations
+
+### Groups vs Frames
+
+**Groups have limited support.** Coordinates of child elements inside a Group may be incorrect when exported.
+
+**Why?** In Figma, Groups use absolute positioning for their children, while Frames use relative positioning. The plugin's positioning logic is optimized for Frames.
+
+**Recommendation:** Use **Frames** instead of Groups for better results. Select a Group and press `Ctrl+Shift+G` (or `Cmd+Shift+G` on Mac) to convert it to a Frame, or manually replace Groups with Frames in your design.
+
+Groups will still work, but the generated QML code may have unexpected `x` and `y` values for nested elements.

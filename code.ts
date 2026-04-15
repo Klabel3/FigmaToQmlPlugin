@@ -392,6 +392,7 @@ figma.ui.onmessage = (msg) => {
     if (msg.type === 'get-selection') {
         const selection = figma.currentPage.selection;
         const qtVersion = msg.qtVersion || '6.0';
+        const includeImports = msg.includeImports !== false; // по умолчанию true
 
         if (selection.length === 0) {
             figma.ui.postMessage({
@@ -413,7 +414,10 @@ figma.ui.onmessage = (msg) => {
             info += `⚠️ Тип "${node.type}" пока не поддерживается.\n`;
         }
 
-        const fullQml = qml ? getRequiredImports(qml, qtVersion) + '\n' + qml : qml;
+        let fullQml = qml;
+        if (includeImports && qml) {
+            fullQml = getRequiredImports(qml, qtVersion) + '\n' + qml;
+        }
 
         figma.ui.postMessage({
             type: 'selection-info',

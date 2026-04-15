@@ -3,21 +3,29 @@
 
 <head>
   <style>
-    body {
-      padding: 16px;
-      font-family: system-ui, sans-serif;
+    * {
+      box-sizing: border-box;
     }
 
+    body {
+      padding: 16px;
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      background: #ffffff;
+      margin: 0;
+    }
+
+    /* Кнопки */
     button {
       width: 100%;
       padding: 10px;
       color: white;
       border: none;
-      border-radius: 6px;
+      border-radius: 8px;
       cursor: pointer;
       font-size: 14px;
-      font-weight: 500;
+      font-weight: 600;
       margin-bottom: 8px;
+      transition: all 0.2s ease;
     }
 
     .primary-btn {
@@ -26,109 +34,223 @@
 
     .primary-btn:hover {
       background: #0d8ce0;
+      transform: translateY(-1px);
     }
 
     .save-btn {
       background: #2C3E50;
+      margin-top: 8px;
+      margin-bottom: 0;
     }
 
     .save-btn:hover {
       background: #1a2632;
+      transform: translateY(-1px);
     }
 
-    .info,
-    .qml {
+    /* Селектор версий */
+    .version-selector {
+      width: 100%;
+      padding: 10px 12px;
+      margin-bottom: 16px;
+      border-radius: 8px;
+      border: 1.5px solid #e0e0e0;
+      background: #fafafa;
+      font-size: 14px;
+      font-weight: 500;
+      color: #333;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .version-selector:hover {
+      border-color: #18A0FB;
+      background: #ffffff;
+    }
+
+    .version-selector:focus {
+      outline: none;
+      border-color: #18A0FB;
+      box-shadow: 0 0 0 3px rgba(24, 160, 251, 0.1);
+    }
+
+    /* Строка с чекбоксом и кнопкой */
+    .action-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .checkbox-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .checkbox-container input {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      accent-color: #18A0FB;
+    }
+
+    .checkbox-container label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #333;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .action-row button {
+      margin-bottom: 0;
+      flex: 1;
+    }
+
+    /* Информация */
+    .info {
       margin-top: 16px;
       padding: 12px;
-      border-radius: 6px;
-      font-family: monospace;
-      font-size: 13px;
-      white-space: pre-wrap;
-      max-height: 300px;
-      overflow: auto;
-    }
-
-    .info {
+      border-radius: 8px;
       background: #f5f5f5;
-    }
-
-    .qml {
-      background: #1e1e1e;
-      color: #d4d4d4;
+      color: #333;
+      font-family: monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      max-height: 150px;
+      overflow: auto;
     }
 
     .label {
       font-size: 11px;
       font-weight: 600;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
       color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
+    /* Виджет QML кода с кнопкой копирования */
+    .qml-wrapper {
+      position: relative;
+      margin-top: 16px;
+    }
+
+    .qml-container {
+      position: relative;
+      background: #1e1e1e;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .qml {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      padding: 12px;
+      margin: 0;
+      max-height: 300px;
+      overflow: auto;
+    }
+
+    .copy-btn-qml {
+      position: absolute;
+      top: 8px;
+      right: 16px;
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      color: white;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      width: auto;
+      margin: 0;
+      backdrop-filter: blur(4px);
+    }
+
+    .copy-btn-qml:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: none;
+    }
+
+    .qml-container:hover .copy-btn-qml {
+      opacity: 1;
+    }
+
+    /* Уведомления */
     .success {
       background: #4CAF50;
       color: white;
-      padding: 8px;
-      border-radius: 4px;
+      padding: 10px;
+      border-radius: 8px;
       text-align: center;
-      margin-top: 8px;
+      margin-top: 12px;
       display: none;
+      font-size: 13px;
+      font-weight: 500;
     }
 
     .error {
       background: #f44336;
       color: white;
-      padding: 8px;
-      border-radius: 4px;
+      padding: 10px;
+      border-radius: 8px;
       text-align: center;
-      margin-top: 8px;
+      margin-top: 12px;
       display: none;
-    }
-
-    .button-group {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-
-    .button-group button {
-      flex: 1;
-      margin-bottom: 0;
-    }
-
-    select {
-      width: 100%;
-      padding: 8px;
-      margin-bottom: 16px;
-      border-radius: 6px;
-      border: 1px solid #ccc;
       font-size: 13px;
+      font-weight: 500;
+    }
+
+    hr {
+      margin: 16px 0;
+      border: none;
+      border-top: 1px solid #e5e5e5;
     }
   </style>
 </head>
 
 <body>
-  <div class="label">⚙️ Настройки генерации</div>
-  <select id="qtVersion">
-    <option value="6.7">Qt 6.7+ (отдельные радиусы углов)</option>
-    <option value="6.0" selected>Qt 6.0-6.6 (стандартный радиус)</option>
-    <option value="5.15">Qt 5.15 (LTS)</option>
+  <!-- Выбор версии на самом верху -->
+  <select id="qtVersion" class="version-selector">
+    <option value="6.7">Qt 6.7</option>
+    <option value="6.0" selected>Qt 6.0</option>
+    <option value="5.15">Qt 5.15</option>
   </select>
 
-  <button id="btn" class="primary-btn">🔍 Получить выделенный элемент</button>
-
-  <div id="buttonGroup" class="button-group" style="display: none;">
-    <button id="copyBtn" class="primary-btn">📋 Копировать QML</button>
-    <button id="saveBtn" class="save-btn">💾 Сохранить в файл</button>
+  <!-- Строка с чекбоксом и кнопкой получения элемента -->
+  <div class="action-row">
+    <div class="checkbox-container">
+      <input type="checkbox" id="includeImports" checked>
+      <label for="includeImports">📦 Импорты</label>
+    </div>
+    <button id="btn" class="primary-btn">🔍 Получить</button>
   </div>
 
+  <!-- Информация -->
   <div class="label">📋 Информация</div>
   <div id="info" class="info">Нажми на кнопку</div>
 
-  <div id="qmlContainer" style="display: none;">
-    <div class="label" style="margin-top: 16px;">🎯 QML код</div>
-    <div id="qml" class="qml"></div>
+  <!-- Кнопка сохранения (над кодом) -->
+  <button id="saveBtn" class="save-btn" style="display: none;">💾 Сохранить в файл</button>
+
+  <!-- QML виджет с кнопкой копирования -->
+  <div id="qmlWrapper" class="qml-wrapper" style="display: none;">
+    <div class="qml-container">
+      <div id="qml" class="qml"></div>
+      <button id="copyQmlBtn" class="copy-btn-qml" title="Копировать">📋</button>
+    </div>
   </div>
 
+  <!-- Уведомления -->
   <div id="successMsg" class="success">✅ Скопировано!</div>
   <div id="errorMsg" class="error">❌ Ошибка</div>
 
@@ -137,16 +259,16 @@
 
   <script>
     const btn = document.getElementById('btn');
-    const copyBtn = document.getElementById('copyBtn');
     const saveBtn = document.getElementById('saveBtn');
-    const buttonGroup = document.getElementById('buttonGroup');
+    const copyQmlBtn = document.getElementById('copyQmlBtn');
     const infoDiv = document.getElementById('info');
-    const qmlContainer = document.getElementById('qmlContainer');
+    const qmlWrapper = document.getElementById('qmlWrapper');
     const qmlDiv = document.getElementById('qml');
     const successMsg = document.getElementById('successMsg');
     const errorMsg = document.getElementById('errorMsg');
     const hiddenTextarea = document.getElementById('hiddenTextarea');
     const qtVersionSelect = document.getElementById('qtVersion');
+    const includeImportsCheckbox = document.getElementById('includeImports');
 
     let currentQML = '';
     let currentNodeName = '';
@@ -175,19 +297,20 @@
 
     btn.onclick = () => {
       infoDiv.innerHTML = '⏳ Загрузка...';
-      qmlContainer.style.display = 'none';
-      buttonGroup.style.display = 'none';
+      qmlWrapper.style.display = 'none';
+      saveBtn.style.display = 'none';
       successMsg.style.display = 'none';
       errorMsg.style.display = 'none';
       parent.postMessage({
         pluginMessage: {
           type: 'get-selection',
-          qtVersion: qtVersionSelect.value
+          qtVersion: qtVersionSelect.value,
+          includeImports: includeImportsCheckbox.checked
         }
       }, '*');
     };
 
-    copyBtn.onclick = () => {
+    copyQmlBtn.onclick = () => {
       if (currentQML && currentQML.length > 0) {
         const success = copyToClipboard(currentQML);
         if (success) {
@@ -228,12 +351,13 @@
           currentQML = msg.qml;
           currentNodeName = msg.nodeName || 'component';
           qmlDiv.innerHTML = msg.qml;
-          qmlContainer.style.display = 'block';
-          buttonGroup.style.display = 'flex';
+          qmlWrapper.style.display = 'block';
+          saveBtn.style.display = 'block';
           console.log('QML сохранён, длина:', currentQML.length);
         } else {
           currentQML = '';
-          buttonGroup.style.display = 'none';
+          qmlWrapper.style.display = 'none';
+          saveBtn.style.display = 'none';
           console.log('QML пуст');
         }
       }

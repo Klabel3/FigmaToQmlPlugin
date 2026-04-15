@@ -196,10 +196,12 @@ function getRadius(node: RectangleNode, qtVersion: string): {
 
 // ========== ГЕНЕРАТОРЫ КОМПОНЕНТОВ ==========
 
-function rectangleToQML(node: RectangleNode, qtVersion: string): string {
+function rectangleToQML(node: RectangleNode, qtVersion: string, relX: number = 0, relY: number = 0): string {
     const idName = cleanNodeName(node.name);
     let qml = `Rectangle {\n`;
     qml += `    id: ${idName}\n`;
+    qml += `    x: ${relX}\n`;
+    qml += `    y: ${relY}\n`;
     qml += `    width: ${node.width}\n`;
     qml += `    height: ${node.height}\n`;
 
@@ -235,10 +237,13 @@ function rectangleToQML(node: RectangleNode, qtVersion: string): string {
     return qml;
 }
 
-function textToQML(node: TextNode, qtVersion: string): string {
+function textToQML(node: TextNode, qtVersion: string, relX: number = 0, relY: number = 0): string {
     const idName = cleanNodeName(node.name);
     let qml = `Text {\n`;
     qml += `    id: ${idName}\n`;
+    qml += `    x: ${relX}\n`;
+    qml += `    y: ${relY}\n`;
+
     const escapedText = node.characters.replace(/"/g, '\\"');
     qml += `    text: "${escapedText}"\n`;
 
@@ -263,10 +268,12 @@ function textToQML(node: TextNode, qtVersion: string): string {
     return qml;
 }
 
-function lineToQML(node: LineNode, qtVersion: string): string {
+function lineToQML(node: LineNode, qtVersion: string, relX: number = 0, relY: number = 0): string {
     const idName = cleanNodeName(node.name);
     let qml = `Rectangle {\n`;
     qml += `    id: ${idName}\n`;
+    qml += `    x: ${relX}\n`;
+    qml += `    y: ${relY}\n`;
 
     if (node.width > node.height) {
         qml += `    width: ${node.width}\n`;
@@ -292,10 +299,12 @@ function lineToQML(node: LineNode, qtVersion: string): string {
     return qml;
 }
 
-function ellipseToQML(node: EllipseNode, qtVersion: string): string {
+function ellipseToQML(node: EllipseNode, qtVersion: string, relX: number = 0, relY: number = 0): string {
     const idName = cleanNodeName(node.name);
     let qml = `Rectangle {\n`;
     qml += `    id: ${idName}\n`;
+    qml += `    x: ${relX}\n`;
+    qml += `    y: ${relY}\n`;
     qml += `    width: ${node.width}\n`;
     qml += `    height: ${node.height}\n`;
     qml += `    radius: ${node.width / 2}\n`;
@@ -318,14 +327,57 @@ function ellipseToQML(node: EllipseNode, qtVersion: string): string {
     return qml;
 }
 
-function getRequiredImports(qmlCode: string, qtVersion: string): string {
-    // Определяем правильный импорт в зависимости от версии
-    let imports = '';
-    if (qtVersion.startsWith('5.')) {
-        imports = `import QtQuick ${qtVersion}\n`;
-    } else {
-        imports = `import QtQuick ${qtVersion}\n`;
+function generateQMLForNode(node: SceneNode, qtVersion: string, parentX: number = 0, parentY: number = 0, isRoot: boolean = true): string | null {
+    // Вычисляем относительную позицию
+    const relX = node.x - parentX;
+    const relY = node.y - parentY;
+
+    switch (node.type) {
+        case 'RECTANGLE':
+            return rectangleToQML(node as RectangleNode, qtVersion, relX, relY);
+        case 'TEXT':
+            return textToQML(node as TextNode, qtVersion, relX, relY);
+        case 'LINE':
+            return lineToQML(node as LineNode, qtVersion, relX, relY);
+        case 'ELLIPSE':
+            return ellipseToQML(node as EllipseNode, qtVersion, relX, relY);
+        case 'FRAME':
+        case 'GROUP':
+            return frameToQML(node as FrameNode | GroupNode, qtVersion, relX, relY, isRoot);
+        default:
+            return null;
     }
+}
+
+function frameToQML(node: FrameNode | GroupNode, qtVersion: string, relX: number = 0, relY: number = 0, isRoot: boolean = false): string {
+    const idName = cleanNodeName(node.name);
+    let qml = `Item {\n`;
+    qml += `    id: ${idName}\n`;
+    if (!isRoot) {
+        qml += `    x: ${relX}\n`;
+        qml += `    y: ${relY}\n`;
+    }
+    qml += `    width: ${node.width}\n`;
+    qml += `    height: ${node.height}\n`;
+
+    if (node.children && node.children.length > 0) {
+        qml += `\n    // Children\n`;
+        for (const child of node.children) {
+            // Передаём координаты Frame (node.x, node.y) как родительские
+            const childQML = generateQMLForNode(child, qtVersion);
+            if (childQML) {
+                const indentedQML = childQML.split('\n').map(line => '    ' + line).join('\n');
+                qml += indentedQML;
+            }
+        }
+    }
+
+    qml += `}\n`;
+    return qml;
+}
+
+function getRequiredImports(qmlCode: string, qtVersion: string): string {
+    let imports = `import QtQuick ${qtVersion}\n`;
 
     if (qmlCode.includes('DropShadow')) {
         imports += 'import QtGraphicalEffects 1.15\n';
@@ -353,26 +405,12 @@ figma.ui.onmessage = (msg) => {
         let info = `Выбран: ${node.name} (${node.type})\n\n`;
         let qml = '';
 
-        switch (node.type) {
-            case 'RECTANGLE':
-                qml = rectangleToQML(node as RectangleNode, qtVersion);
-                info += '✅ Прямоугольник → QML:\n\n';
-                break;
-            case 'TEXT':
-                qml = textToQML(node as TextNode, qtVersion);
-                info += '✅ Текст → QML:\n\n';
-                break;
-            case 'LINE':
-                qml = lineToQML(node as LineNode, qtVersion);
-                info += '✅ Линия → QML:\n\n';
-                break;
-            case 'ELLIPSE':
-                qml = ellipseToQML(node as EllipseNode, qtVersion);
-                info += '✅ Круг/Эллипс → QML:\n\n';
-                break;
-            default:
-                info += '⚠️ Поддерживаются: RECTANGLE, TEXT, LINE, ELLIPSE.\n';
-                info += 'Выберите подходящий элемент.';
+        qml = generateQMLForNode(node, qtVersion) || '';
+
+        if (qml) {
+            info += `✅ ${node.type} → QML:\n\n`;
+        } else {
+            info += `⚠️ Тип "${node.type}" пока не поддерживается.\n`;
         }
 
         const fullQml = qml ? getRequiredImports(qml, qtVersion) + '\n' + qml : qml;

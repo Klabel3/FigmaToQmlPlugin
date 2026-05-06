@@ -10,13 +10,22 @@ Convert Figma designs to QML code for Qt applications.
 
 ## Features
 
-- 🔵 **Rectangle** → QML Rectangle (color, border, radius, shadow)
-- 📝 **Text** → QML Text (font size, color, alignment, shadow)
-- 📏 **Line** → QML Rectangle as line
-- ⭕ **Ellipse** → QML Rectangle with radius
-- 📋 Copy to clipboard
-- 💾 Save as .qml file
+| Element | Properties |
+|---------|------------|
+| 🔵 **Rectangle** | width, height, color, border, radius, shadow |
+| 📝 **Text** | text, font (family, size, weight, italic), color, alignment, shadow |
+| 📏 **Line** | width, height, color, shadow |
+| ⭕ **Ellipse** | width, height, color, border, radius, shadow |
+| 🧩 **Frame / Group** | nested items, absolute/relative positioning |
+| 📐 **Auto Layout** | **RowLayout / ColumnLayout** with spacing, padding |
+| 🎨 **Shadows** | DropShadow support for all elements |
+
+**Plus:**
+- 📋 Copy to clipboard (hover button inside code widget)
+- 💾 Save as `.qml` file
 - 🏷️ Preserves layer names as QML `id`
+- 📦 Optional imports (checkbox)
+- 🔧 Qt version selection (5.15 / 6.0 / 6.7)
 
 ## Installation
 
@@ -34,7 +43,8 @@ Convert Figma designs to QML code for Qt applications.
 
 ## Roadmap
 
-- [ ] Auto Layout (RowLayout / ColumnLayout)
+- [ ] Components support
+- [ ] Image support (PNG/SVG)
 - [ ] Gradients support
 - [ ] AI-powered animation generation (Pro version)
 

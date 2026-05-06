@@ -196,12 +196,16 @@ function getRadius(node: RectangleNode, qtVersion: string): {
 
 // ========== ГЕНЕРАТОРЫ КОМПОНЕНТОВ ==========
 
-function rectangleToQML(node: RectangleNode, qtVersion: string, relX: number = 0, relY: number = 0): string {
+function rectangleToQML(node: RectangleNode, qtVersion: string, relX: number = 0, relY: number = 0, isRoot: boolean = false, isInsideLayout: boolean = false): string {
     const idName = cleanNodeName(node.name);
     let qml = `Rectangle {\n`;
     qml += `    id: ${idName}\n`;
-    qml += `    x: ${relX}\n`;
-    qml += `    y: ${relY}\n`;
+
+    if (!isInsideLayout && !isRoot) {
+        qml += `    x: ${relX}\n`;
+        qml += `    y: ${relY}\n`;
+    }
+
     qml += `    width: ${node.width}\n`;
     qml += `    height: ${node.height}\n`;
 
@@ -237,29 +241,64 @@ function rectangleToQML(node: RectangleNode, qtVersion: string, relX: number = 0
     return qml;
 }
 
-function textToQML(node: TextNode, qtVersion: string, relX: number = 0, relY: number = 0): string {
+function textToQML(node: TextNode, qtVersion: string, relX: number = 0, relY: number = 0, isRoot: boolean = false, isInsideLayout: boolean = false): string {
     const idName = cleanNodeName(node.name);
     let qml = `Text {\n`;
     qml += `    id: ${idName}\n`;
-    qml += `    x: ${relX}\n`;
-    qml += `    y: ${relY}\n`;
 
+    // Координаты только если не внутри Layout и не корневой
+    if (!isInsideLayout && !isRoot) {
+        qml += `    x: ${relX}\n`;
+        qml += `    y: ${relY}\n`;
+    }
+
+    // Текст
     const escapedText = node.characters.replace(/"/g, '\\"');
     qml += `    text: "${escapedText}"\n`;
 
+    // Размер шрифта
     const fontSize = node.fontSize;
     if (fontSize && fontSize !== figma.mixed) {
         qml += `    font.pixelSize: ${fontSize}\n`;
     }
 
+    // Семейство шрифта и начертание
+    const fontName = node.fontName;
+    if (fontName && fontName !== figma.mixed) {
+        const family = fontName.family;
+        const style = fontName.style; // может содержать "Italic", "Bold", "Bold Italic" и т.д.
+
+        // Экранируем кавычки в названии шрифта
+        const escapedFamily = family.replace(/"/g, '\\"');
+        qml += `    font.family: "${escapedFamily}"\n`;
+
+        // Проверяем начертание на наличие курсива
+        if (style && style.toLowerCase().includes('italic')) {
+            qml += `    font.italic: true\n`;
+        }
+    }
+
+    // Вес шрифта
+    const fontWeight = node.fontWeight;
+    if (fontWeight && fontWeight !== figma.mixed) {
+        let weightString = 'Font.Normal';
+        if (fontWeight >= 700) weightString = 'Font.Bold';
+        else if (fontWeight <= 300) weightString = 'Font.Light';
+        else if (fontWeight >= 500) weightString = 'Font.Medium';
+        qml += `    font.weight: ${weightString}\n`;
+    }
+
+    // Цвет текста
     const textColor = getSolidColor(node.fills);
     if (textColor) {
         qml += `    color: "#${textColor}"\n`;
     }
 
+    // Выравнивание
     qml += `    horizontalAlignment: Text.${getTextAlign(node.textAlignHorizontal)}\n`;
-    qml += `}`;
+    qml += `}\n`;
 
+    // Тень
     const shadow = getShadowParams(node);
     if (shadow) {
         qml += generateTextShadow(idName, shadow);
@@ -268,12 +307,15 @@ function textToQML(node: TextNode, qtVersion: string, relX: number = 0, relY: nu
     return qml;
 }
 
-function lineToQML(node: LineNode, qtVersion: string, relX: number = 0, relY: number = 0): string {
+function lineToQML(node: LineNode, qtVersion: string, relX: number = 0, relY: number = 0, isRoot: boolean = false, isInsideLayout: boolean = false): string {
     const idName = cleanNodeName(node.name);
     let qml = `Rectangle {\n`;
     qml += `    id: ${idName}\n`;
-    qml += `    x: ${relX}\n`;
-    qml += `    y: ${relY}\n`;
+
+    if (!isInsideLayout && !isRoot) {
+        qml += `    x: ${relX}\n`;
+        qml += `    y: ${relY}\n`;
+    }
 
     if (node.width > node.height) {
         qml += `    width: ${node.width}\n`;
@@ -299,12 +341,16 @@ function lineToQML(node: LineNode, qtVersion: string, relX: number = 0, relY: nu
     return qml;
 }
 
-function ellipseToQML(node: EllipseNode, qtVersion: string, relX: number = 0, relY: number = 0): string {
+function ellipseToQML(node: EllipseNode, qtVersion: string, relX: number = 0, relY: number = 0, isRoot: boolean = false, isInsideLayout: boolean = false): string {
     const idName = cleanNodeName(node.name);
     let qml = `Rectangle {\n`;
     qml += `    id: ${idName}\n`;
-    qml += `    x: ${relX}\n`;
-    qml += `    y: ${relY}\n`;
+
+    if (!isInsideLayout && !isRoot) {
+        qml += `    x: ${relX}\n`;
+        qml += `    y: ${relY}\n`;
+    }
+
     qml += `    width: ${node.width}\n`;
     qml += `    height: ${node.height}\n`;
     qml += `    radius: ${node.width / 2}\n`;
@@ -327,44 +373,44 @@ function ellipseToQML(node: EllipseNode, qtVersion: string, relX: number = 0, re
     return qml;
 }
 
-function generateQMLForNode(node: SceneNode, qtVersion: string, parentX: number = 0, parentY: number = 0, isRoot: boolean = true): string | null {
-    // Вычисляем относительную позицию
-    const relX = node.x - parentX;
-    const relY = node.y - parentY;
-
-    switch (node.type) {
-        case 'RECTANGLE':
-            return rectangleToQML(node as RectangleNode, qtVersion, relX, relY);
-        case 'TEXT':
-            return textToQML(node as TextNode, qtVersion, relX, relY);
-        case 'LINE':
-            return lineToQML(node as LineNode, qtVersion, relX, relY);
-        case 'ELLIPSE':
-            return ellipseToQML(node as EllipseNode, qtVersion, relX, relY);
-        case 'FRAME':
-        case 'GROUP':
-            return frameToQML(node as FrameNode | GroupNode, qtVersion, relX, relY, isRoot);
-        default:
-            return null;
-    }
-}
-
-function frameToQML(node: FrameNode | GroupNode, qtVersion: string, relX: number = 0, relY: number = 0, isRoot: boolean = false): string {
+function autoLayoutToQML(node: FrameNode, qtVersion: string, relX: number = 0, relY: number = 0, isRoot: boolean = false, isInsideLayout: boolean = false): string {
     const idName = cleanNodeName(node.name);
-    let qml = `Item {\n`;
+    const isHorizontal = node.layoutMode === 'HORIZONTAL';
+    const layoutType = isHorizontal ? 'RowLayout' : 'ColumnLayout';
+
+    let qml = `${layoutType} {\n`;
     qml += `    id: ${idName}\n`;
-    if (!isRoot) {
+
+    // Координаты ТОЛЬКО если элемент не корневой и не внутри Layout
+    if (!isRoot && !isInsideLayout) {
         qml += `    x: ${relX}\n`;
         qml += `    y: ${relY}\n`;
     }
+
     qml += `    width: ${node.width}\n`;
     qml += `    height: ${node.height}\n`;
+
+    if (node.itemSpacing && node.itemSpacing > 0) {
+        qml += `    spacing: ${node.itemSpacing}\n`;
+    }
+
+    if (node.paddingLeft && node.paddingLeft > 0) {
+        qml += `    leftPadding: ${node.paddingLeft}\n`;
+    }
+    if (node.paddingRight && node.paddingRight > 0) {
+        qml += `    rightPadding: ${node.paddingRight}\n`;
+    }
+    if (node.paddingTop && node.paddingTop > 0) {
+        qml += `    topPadding: ${node.paddingTop}\n`;
+    }
+    if (node.paddingBottom && node.paddingBottom > 0) {
+        qml += `    bottomPadding: ${node.paddingBottom}\n`;
+    }
 
     if (node.children && node.children.length > 0) {
         qml += `\n    // Children\n`;
         for (const child of node.children) {
-            // Передаём координаты Frame (node.x, node.y) как родительские
-            const childQML = generateQMLForNode(child, qtVersion);
+            const childQML = generateQMLForNode(child, qtVersion, node.x, node.y, false, true);
             if (childQML) {
                 const indentedQML = childQML.split('\n').map(line => '    ' + line).join('\n');
                 qml += indentedQML;
@@ -376,13 +422,97 @@ function frameToQML(node: FrameNode | GroupNode, qtVersion: string, relX: number
     return qml;
 }
 
-function getRequiredImports(qmlCode: string, qtVersion: string): string {
-    let imports = `import QtQuick ${qtVersion}\n`;
+function generateQMLForNode(
+    node: SceneNode,
+    qtVersion: string,
+    parentX: number = 0,
+    parentY: number = 0,
+    isRoot: boolean = true,
+    isInsideLayout: boolean = false
+): string | null {
+    let relX, relY;
 
+    if (node.parent?.type === 'GROUP') {
+        relX = node.x;
+        relY = node.y;
+    } else {
+        relX = node.x - parentX;
+        relY = node.y - parentY;
+    }
+
+    switch (node.type) {
+        case 'RECTANGLE':
+            return rectangleToQML(node as RectangleNode, qtVersion, relX, relY, isRoot && node.parent?.type !== 'GROUP', isInsideLayout);
+        case 'TEXT':
+            return textToQML(node as TextNode, qtVersion, relX, relY, isRoot && node.parent?.type !== 'GROUP', isInsideLayout);
+        case 'LINE':
+            return lineToQML(node as LineNode, qtVersion, relX, relY, isRoot && node.parent?.type !== 'GROUP', isInsideLayout);
+        case 'ELLIPSE':
+            return ellipseToQML(node as EllipseNode, qtVersion, relX, relY, isRoot && node.parent?.type !== 'GROUP', isInsideLayout);
+        case 'FRAME':
+        case 'GROUP':
+            return frameToQML(node as FrameNode | GroupNode, qtVersion, relX, relY, isRoot, isInsideLayout);
+        default:
+            return null;
+    }
+}
+
+function frameToQML(
+    node: FrameNode | GroupNode,
+    qtVersion: string,
+    relX: number = 0,
+    relY: number = 0,
+    isRoot: boolean = false,
+    isInsideLayout: boolean = false
+): string {
+    const idName = cleanNodeName(node.name);
+
+    let hasAutoLayout = false;
+    if (node.type === 'FRAME') {
+        const frameNode = node as FrameNode;
+        hasAutoLayout = frameNode.layoutMode && frameNode.layoutMode !== 'NONE';
+    }
+
+    if (hasAutoLayout) {
+        return autoLayoutToQML(node as FrameNode, qtVersion, relX, relY, isRoot, isInsideLayout);
+    }
+
+    let qml = `Item {\n`;
+    qml += `    id: ${idName}\n`;
+
+    // Координаты добавляем, только если НЕ внутри Layout
+    if (!isInsideLayout && !isRoot) {
+        qml += `    x: ${relX}\n`;
+        qml += `    y: ${relY}\n`;
+    }
+
+    qml += `    width: ${node.width}\n`;
+    qml += `    height: ${node.height}\n`;
+
+    if (node.children && node.children.length > 0) {
+        qml += `\n    // Children\n`;
+        for (const child of node.children) {
+            const childQML = generateQMLForNode(child, qtVersion, node.x, node.y, false, isInsideLayout);
+            if (childQML) {
+                const indentedQML = childQML.split('\n').map(line => '    ' + line).join('\n');
+                qml += indentedQML;
+            }
+        }
+    }
+
+    qml += `}\n`;
+    return qml;
+}
+
+function getRequiredImports(qmlCode: string, qtVersion: string, hasLayouts: boolean = false): string {
+    let imports = `import QtQuick ${qtVersion}\n`;
+    // Добавляем импорт Layouts, если в коде есть RowLayout или ColumnLayout
+    if (hasLayouts || qmlCode.includes('RowLayout') || qmlCode.includes('ColumnLayout')) {
+        imports += `import QtQuick.Layouts ${qtVersion === '5.15' ? '1.15' : qtVersion}\n`;
+    }
     if (qmlCode.includes('DropShadow')) {
         imports += 'import QtGraphicalEffects 1.15\n';
     }
-
     return imports;
 }
 

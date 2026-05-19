@@ -2,32 +2,14 @@ figma.showUI(__html__, { width: 400, height: 580 });
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 
-function colorToHex(color: RGBA): string {
+function colorToHex(color: RGBA, withAlpha: boolean = true): string {
     const r = Math.round(color.r * 255);
     const g = Math.round(color.g * 255);
     const b = Math.round(color.b * 255);
-    return ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
-}
 
-function getSolidColor(paints: readonly Paint[] | typeof figma.mixed): string | null {
-    if (paints && Array.isArray(paints) && paints.length > 0 && paints[0].type === 'SOLID') {
-        return colorToHex(paints[0].color);
-    }
-    return null;
-}
+    const rgb = ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
 
-function getBorder(node: RectangleNode | EllipseNode): { color: string | null; width: number } {
-    const strokes = node.strokes;
-    let color: string | null = null;
-    let width = 0;
-
-    if (strokes && Array.isArray(strokes) && strokes.length > 0 && strokes[0].type === 'SOLID') {
-        color = colorToHex(strokes[0].color);
-        const strokeWeight = node.strokeWeight;
-        width = (strokeWeight && strokeWeight !== figma.mixed) ? strokeWeight as number : 1;
-    }
-
-    return { color, width };
+    return rgb;
 }
 
 function getTextAlign(align: string | null): string {
@@ -41,7 +23,33 @@ function getTextAlign(align: string | null): string {
     return alignMap[align.toLowerCase()] || 'AlignLeft';
 }
 
-function cleanNodeName(name: string): string {
+function getRequiredImports(qmlCode: string, qtVersion: string, hasLayouts: boolean = false): string {
+    let imports = `import QtQuick ${qtVersion}\n`;
+    // Добавляем импорт Layouts, если в коде есть RowLayout или ColumnLayout
+    if (hasLayouts || qmlCode.includes('RowLayout') || qmlCode.includes('ColumnLayout')) {
+        imports += `import QtQuick.Layouts ${qtVersion === '5.15' ? '1.15' : qtVersion}\n`;
+    }
+    if (qmlCode.includes('DropShadow')) {
+        imports += 'import QtGraphicalEffects 1.15\n';
+    }
+    return imports;
+}
+
+function injectLayoutAlignment(childQML: string, alignment: string): string {
+    const lines = childQML.split('\n');
+    for (let i = lines.length - 1; i >= 0; i--) {
+        if (lines[i].trim() === '}') {
+            lines.splice(i, 0, `    Layout.alignment: ${alignment}`);
+            break;
+        }
+    }
+    let result = lines.join('\n');
+    if (!result.endsWith('\n')) result += '\n';
+    return result;
+}
+
+// Очистка имени от спецсимволов
+function sanitizeName(name: string): string {
     let cleaned = name
         .replace(/[_\-]/g, ' ')
         .replace(/[^a-zA-Z0-9\s]/g, '')
@@ -61,6 +69,50 @@ function cleanNodeName(name: string): string {
     return result;
 }
 
+// Генерация уникального id на основе имени узла и множества использованных id
+function generateUniqueId(baseName: string, usedIds: Set<string>): string {
+    let candidate = sanitizeName(baseName);
+    let finalId = candidate;
+    let counter = 1;
+    while (usedIds.has(finalId)) {
+        finalId = `${candidate}_${counter++}`;
+    }
+    usedIds.add(finalId);
+    return finalId;
+}
+
+function hasImageFill(node: RectangleNode): boolean {
+    const fills = node.fills;
+    if (!fills || !Array.isArray(fills) || fills.length === 0) return false;
+    return fills.some(fill => fill.type === 'IMAGE');
+}
+
+// Возвращает цвет (hex без #) и альфу для заливки
+function getSolidColorWithAlpha(paints: readonly Paint[] | typeof figma.mixed): { color: string | null; alpha: number } {
+    if (paints && Array.isArray(paints) && paints.length > 0 && paints[0].type === 'SOLID') {
+        return {
+            color: colorToHex(paints[0].color),
+            alpha: paints[0].opacity !== undefined ? paints[0].opacity : 1
+        };
+    }
+    return { color: null, alpha: 1 };
+}
+
+// Возвращает цвет (hex без #) и альфу для обводки (border)
+function getStrokeColorWithAlpha(node: RectangleNode | EllipseNode): { color: string | null; width: number; alpha: number } {
+    const strokes = node.strokes;
+    let color: string | null = null;
+    let width = 0;
+    let alpha = 1;
+    if (strokes && Array.isArray(strokes) && strokes.length > 0 && strokes[0].type === 'SOLID') {
+        color = colorToHex(strokes[0].color);
+        const strokeWeight = node.strokeWeight;
+        width = (strokeWeight && strokeWeight !== figma.mixed) ? strokeWeight as number : 1;
+        alpha = strokes[0].opacity !== undefined ? strokes[0].opacity : 1;
+    }
+    return { color, width, alpha };
+}
+
 // ========== ТЕНИ ==========
 
 interface ShadowParams {
@@ -72,32 +124,25 @@ interface ShadowParams {
 
 function getShadowParams(node: any): ShadowParams | null {
     const effects = node.effects;
-    if (!effects || !Array.isArray(effects)) {
-        return null;
-    }
+    if (!effects || !Array.isArray(effects)) return null;
 
     const dropShadow = effects.find((e: any) => e.type === 'DROP_SHADOW');
-    if (!dropShadow) {
-        return null;
-    }
+    if (!dropShadow) return null;
 
     const offsetX = dropShadow.offset?.x || 0;
     const offsetY = dropShadow.offset?.y || 0;
     const radius = dropShadow.radius || 0;
     const color = dropShadow.color;
 
-    const r = Math.round(color.r * 255);
-    const g = Math.round(color.g * 255);
-    const b = Math.round(color.b * 255);
-    const a = color.a;
-    const hex = ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
-    const alphaHex = Math.round(a * 255).toString(16).padStart(2, '0');
+    const hex = colorToHex(color);
+    const alpha = color.a !== undefined ? color.a : 1;
+    const alphaHex = Math.round(alpha * 255).toString(16).padStart(2, '0');
 
     return {
         offsetX,
         offsetY,
         radius,
-        color: `#${hex}${alphaHex}`
+        color: `#${alphaHex}${hex}`
     };
 }
 
@@ -110,7 +155,7 @@ function generateRectShadow(shadow: ShadowParams): string {
         radius: ${shadow.radius}
         color: "${shadow.color}"
         samples: ${Math.min(shadow.radius * 2, 32)}
-    }`;
+    }\n`;
 }
 
 function generateTextShadow(idName: string, shadow: ShadowParams): string {
@@ -172,7 +217,6 @@ function getRadius(node: RectangleNode, qtVersion: string): {
         }
     }
 
-    // Fallback к старому способу
     const cornerRadius = node.cornerRadius;
     if (cornerRadius && cornerRadius !== figma.mixed && cornerRadius > 0) {
         result.topLeft = cornerRadius;
@@ -196,8 +240,16 @@ function getRadius(node: RectangleNode, qtVersion: string): {
 
 // ========== ГЕНЕРАТОРЫ КОМПОНЕНТОВ ==========
 
-function rectangleToQML(node: RectangleNode, qtVersion: string, relX: number = 0, relY: number = 0, isRoot: boolean = false, isInsideLayout: boolean = false): string {
-    const idName = cleanNodeName(node.name);
+function rectangleToQML(
+    node: RectangleNode,
+    qtVersion: string,
+    relX: number = 0,
+    relY: number = 0,
+    isRoot: boolean = false,
+    isInsideLayout: boolean = false,
+    usedIds: Set<string>
+): string {
+    const idName = generateUniqueId(node.name, usedIds);
     let qml = `Rectangle {\n`;
     qml += `    id: ${idName}\n`;
 
@@ -209,13 +261,23 @@ function rectangleToQML(node: RectangleNode, qtVersion: string, relX: number = 0
     qml += `    width: ${node.width}\n`;
     qml += `    height: ${node.height}\n`;
 
-    const fillColor = getSolidColor(node.fills);
-    qml += `    color: "${fillColor || 'transparent'}"\n`;
+    const fill = getSolidColorWithAlpha(node.fills);
+    if (fill.color) {
+        qml += `    color: "#${fill.color}"\n`;
+        if (fill.alpha < 0.999) qml += `    opacity: ${fill.alpha.toFixed(2)}\n`;
+    } else {
+        qml += `    color: "transparent"\n`;
+    }
 
-    const border = getBorder(node);
-    if (border.color) {
-        qml += `    border.color: "#${border.color}"\n`;
-        qml += `    border.width: ${border.width}\n`;
+    const stroke = getStrokeColorWithAlpha(node);
+    if (stroke.color) {
+        if (stroke.alpha < 0.999) {
+            const alphaHex = Math.round(stroke.alpha * 255).toString(16).padStart(2, '0');
+            qml += `    border.color: "#${alphaHex}${stroke.color}"\n`;
+        } else {
+            qml += `    border.color: "#${stroke.color}"\n`;
+        }
+        qml += `    border.width: ${stroke.width}\n`;
     }
 
     // Радиусы с учётом версии Qt
@@ -237,48 +299,47 @@ function rectangleToQML(node: RectangleNode, qtVersion: string, relX: number = 0
         qml += generateRectShadow(shadow);
     }
 
-    qml += `}`;
+    qml += `}\n`;
     return qml;
 }
 
-function textToQML(node: TextNode, qtVersion: string, relX: number = 0, relY: number = 0, isRoot: boolean = false, isInsideLayout: boolean = false): string {
-    const idName = cleanNodeName(node.name);
+function textToQML(
+    node: TextNode,
+    qtVersion: string,
+    relX: number = 0,
+    relY: number = 0,
+    isRoot: boolean = false,
+    isInsideLayout: boolean = false,
+    usedIds: Set<string>
+): string {
+    const idName = generateUniqueId(node.name, usedIds);
     let qml = `Text {\n`;
     qml += `    id: ${idName}\n`;
 
-    // Координаты только если не внутри Layout и не корневой
     if (!isInsideLayout && !isRoot) {
         qml += `    x: ${relX}\n`;
         qml += `    y: ${relY}\n`;
     }
 
-    // Текст
     const escapedText = node.characters.replace(/"/g, '\\"');
     qml += `    text: "${escapedText}"\n`;
 
-    // Размер шрифта
     const fontSize = node.fontSize;
     if (fontSize && fontSize !== figma.mixed) {
         qml += `    font.pixelSize: ${fontSize}\n`;
     }
 
-    // Семейство шрифта и начертание
     const fontName = node.fontName;
     if (fontName && fontName !== figma.mixed) {
         const family = fontName.family;
-        const style = fontName.style; // может содержать "Italic", "Bold", "Bold Italic" и т.д.
-
-        // Экранируем кавычки в названии шрифта
+        const style = fontName.style;
         const escapedFamily = family.replace(/"/g, '\\"');
         qml += `    font.family: "${escapedFamily}"\n`;
-
-        // Проверяем начертание на наличие курсива
         if (style && style.toLowerCase().includes('italic')) {
             qml += `    font.italic: true\n`;
         }
     }
 
-    // Вес шрифта
     const fontWeight = node.fontWeight;
     if (fontWeight && fontWeight !== figma.mixed) {
         let weightString = 'Font.Normal';
@@ -288,17 +349,27 @@ function textToQML(node: TextNode, qtVersion: string, relX: number = 0, relY: nu
         qml += `    font.weight: ${weightString}\n`;
     }
 
-    // Цвет текста
-    const textColor = getSolidColor(node.fills);
-    if (textColor) {
-        qml += `    color: "#${textColor}"\n`;
+    const fill = getSolidColorWithAlpha(node.fills);
+    if (fill.color) {
+        qml += `    color: "#${fill.color}"\n`;
+        if (fill.alpha < 0.999) qml += `    opacity: ${fill.alpha.toFixed(2)}\n`;
     }
 
-    // Выравнивание
     qml += `    horizontalAlignment: Text.${getTextAlign(node.textAlignHorizontal)}\n`;
+
+    const verticalAlign = node.textAlignVertical;
+    if (verticalAlign) {
+        const vAlignMap: Record<string, string> = {
+            'TOP': 'AlignTop',
+            'CENTER': 'AlignVCenter',
+            'BOTTOM': 'AlignBottom'
+        };
+        const vAlign = vAlignMap[verticalAlign] || 'AlignVCenter';
+        qml += `    verticalAlignment: Text.${vAlign}\n`;
+    }
+
     qml += `}\n`;
 
-    // Тень
     const shadow = getShadowParams(node);
     if (shadow) {
         qml += generateTextShadow(idName, shadow);
@@ -307,8 +378,16 @@ function textToQML(node: TextNode, qtVersion: string, relX: number = 0, relY: nu
     return qml;
 }
 
-function lineToQML(node: LineNode, qtVersion: string, relX: number = 0, relY: number = 0, isRoot: boolean = false, isInsideLayout: boolean = false): string {
-    const idName = cleanNodeName(node.name);
+function lineToQML(
+    node: LineNode,
+    qtVersion: string,
+    relX: number = 0,
+    relY: number = 0,
+    isRoot: boolean = false,
+    isInsideLayout: boolean = false,
+    usedIds: Set<string>
+): string {
+    const idName = generateUniqueId(node.name, usedIds);
     let qml = `Rectangle {\n`;
     qml += `    id: ${idName}\n`;
 
@@ -327,22 +406,32 @@ function lineToQML(node: LineNode, qtVersion: string, relX: number = 0, relY: nu
 
     const strokes = node.strokes;
     let color = '#000000';
+    let alpha = 1;
     if (strokes && Array.isArray(strokes) && strokes.length > 0 && strokes[0].type === 'SOLID') {
         color = `#${colorToHex(strokes[0].color)}`;
+        alpha = strokes[0].opacity !== undefined ? strokes[0].opacity : 1;
     }
     qml += `    color: "${color}"\n`;
+    if (alpha < 0.999) qml += `    opacity: ${alpha.toFixed(2)}\n`;
 
     const shadow = getShadowParams(node);
     if (shadow) {
         qml += generateRectShadow(shadow);
     }
 
-    qml += `}`;
+    qml += `}\n`;
     return qml;
 }
 
-function ellipseToQML(node: EllipseNode, qtVersion: string, relX: number = 0, relY: number = 0, isRoot: boolean = false, isInsideLayout: boolean = false): string {
-    const idName = cleanNodeName(node.name);
+function ellipseToQML(node: EllipseNode,
+    qtVersion: string,
+    relX: number = 0,
+    relY: number = 0,
+    isRoot: boolean = false,
+    isInsideLayout: boolean = false,
+    usedIds: Set<string>
+): string {
+    const idName = generateUniqueId(node.name, usedIds);
     let qml = `Rectangle {\n`;
     qml += `    id: ${idName}\n`;
 
@@ -355,13 +444,23 @@ function ellipseToQML(node: EllipseNode, qtVersion: string, relX: number = 0, re
     qml += `    height: ${node.height}\n`;
     qml += `    radius: ${node.width / 2}\n`;
 
-    const fillColor = getSolidColor(node.fills);
-    qml += `    color: "${fillColor || 'transparent'}"\n`;
+    const fill = getSolidColorWithAlpha(node.fills);
+    if (fill.color) {
+        qml += `    color: "#${fill.color}"\n`;
+        if (fill.alpha < 0.999) qml += `    opacity: ${fill.alpha.toFixed(2)}\n`;
+    } else {
+        qml += `    color: "transparent"\n`;
+    }
 
-    const border = getBorder(node);
-    if (border.color) {
-        qml += `    border.color: "#${border.color}"\n`;
-        qml += `    border.width: ${border.width}\n`;
+    const stroke = getStrokeColorWithAlpha(node);
+    if (stroke.color) {
+        if (stroke.alpha < 0.999) {
+            const alphaHex = Math.round(stroke.alpha * 255).toString(16).padStart(2, '0');
+            qml += `    border.color: "#${alphaHex}${stroke.color}"\n`;
+        } else {
+            qml += `    border.color: "#${stroke.color}"\n`;
+        }
+        qml += `    border.width: ${stroke.width}\n`;
     }
 
     const shadow = getShadowParams(node);
@@ -369,19 +468,88 @@ function ellipseToQML(node: EllipseNode, qtVersion: string, relX: number = 0, re
         qml += generateRectShadow(shadow);
     }
 
-    qml += `}`;
+    qml += `}\n`;
     return qml;
 }
 
-function autoLayoutToQML(node: FrameNode, qtVersion: string, relX: number = 0, relY: number = 0, isRoot: boolean = false, isInsideLayout: boolean = false): string {
-    const idName = cleanNodeName(node.name);
+function imageToQML(
+    node: RectangleNode,
+    qtVersion: string,
+    relX: number = 0,
+    relY: number = 0,
+    isRoot: boolean = false,
+    isInsideLayout: boolean = false,
+    usedIds: Set<string>
+): string {
+    const idName = generateUniqueId(node.name, usedIds);
+    let qml = `Image {\n`;
+    qml += `    id: ${idName}\n`;
+
+    if (!isInsideLayout && !isRoot) {
+        qml += `    x: ${relX}\n`;
+        qml += `    y: ${relY}\n`;
+    }
+
+    qml += `    width: ${node.width}\n`;
+    qml += `    height: ${node.height}\n`;
+
+    // Рекомендация по имени файла (можно взять из имени узла)
+    const suggestedName = idName;
+    qml += `    // Export image from Figma as PNG and place in 'images/' folder\n`;
+    qml += `    source: "images/${suggestedName}.png"\n`;
+    qml += `    fillMode: Image.PreserveAspectFit\n`;
+    qml += `}\n`;
+
+    return qml;
+}
+
+function vectorToQMLImage(
+    node: SceneNode, // VECTOR, BOOLEAN_OPERATION, STAR, POLYGON и т.д.
+    qtVersion: string,
+    relX: number = 0,
+    relY: number = 0,
+    isRoot: boolean = false,
+    isInsideLayout: boolean = false,
+    usedIds: Set<string>
+): string {
+    const idName = generateUniqueId(node.name, usedIds);
+    let qml = `Image {\n`;
+    qml += `    id: ${idName}\n`;
+
+    if (!isInsideLayout && !isRoot) {
+        qml += `    x: ${relX}\n`;
+        qml += `    y: ${relY}\n`;
+    }
+
+    qml += `    width: ${node.width}\n`;
+    qml += `    height: ${node.height}\n`;
+
+    const suggestedName = sanitizeName(node.name) || 'vector';
+    qml += `    // Export vector from Figma as SVG and place in 'images/' folder\n`;
+    qml += `    // Right-click on "${node.name}" → Export → SVG\n`;
+    qml += `    source: "images/${suggestedName}.svg"\n`;
+    qml += `    fillMode: Image.PreserveAspectFit\n`;
+    qml += `}\n`;
+
+    return qml;
+}
+
+function autoLayoutToQML(
+    node: FrameNode,
+    qtVersion: string,
+    relX: number = 0,
+    relY: number = 0,
+    isRoot: boolean = false,
+    isInsideLayout: boolean = false,
+    usedIds: Set<string>
+): string {
+    const idName = generateUniqueId(node.name, usedIds);
     const isHorizontal = node.layoutMode === 'HORIZONTAL';
     const layoutType = isHorizontal ? 'RowLayout' : 'ColumnLayout';
 
     let qml = `${layoutType} {\n`;
     qml += `    id: ${idName}\n`;
 
-    // Координаты ТОЛЬКО если элемент не корневой и не внутри Layout
     if (!isRoot && !isInsideLayout) {
         qml += `    x: ${relX}\n`;
         qml += `    y: ${relY}\n`;
@@ -394,24 +562,12 @@ function autoLayoutToQML(node: FrameNode, qtVersion: string, relX: number = 0, r
         qml += `    spacing: ${node.itemSpacing}\n`;
     }
 
-    if (node.paddingLeft && node.paddingLeft > 0) {
-        qml += `    leftPadding: ${node.paddingLeft}\n`;
-    }
-    if (node.paddingRight && node.paddingRight > 0) {
-        qml += `    rightPadding: ${node.paddingRight}\n`;
-    }
-    if (node.paddingTop && node.paddingTop > 0) {
-        qml += `    topPadding: ${node.paddingTop}\n`;
-    }
-    if (node.paddingBottom && node.paddingBottom > 0) {
-        qml += `    bottomPadding: ${node.paddingBottom}\n`;
-    }
-
     if (node.children && node.children.length > 0) {
-        qml += `\n    // Children\n`;
+        const alignment = isHorizontal ? 'Qt.AlignVCenter' : 'Qt.AlignHCenter';
         for (const child of node.children) {
-            const childQML = generateQMLForNode(child, qtVersion, node.x, node.y, false, true);
+            let childQML = generateQMLForNode(child, qtVersion, node.x, node.y, false, true, usedIds);
             if (childQML) {
+                childQML = injectLayoutAlignment(childQML, alignment);
                 const indentedQML = childQML.split('\n').map(line => '    ' + line).join('\n');
                 qml += indentedQML;
             }
@@ -428,32 +584,52 @@ function generateQMLForNode(
     parentX: number = 0,
     parentY: number = 0,
     isRoot: boolean = true,
-    isInsideLayout: boolean = false
+    isInsideLayout: boolean = false,
+    usedIds: Set<string>
 ): string | null {
     let relX, relY;
 
-    if (node.parent?.type === 'GROUP') {
-        relX = node.x;
-        relY = node.y;
+    if (isRoot) {
+        relX = 0;
+        relY = 0;
     } else {
-        relX = node.x - parentX;
-        relY = node.y - parentY;
+        if (node.parent?.type === 'GROUP') {
+            // Для Group: координаты детей абсолютные, вычитаем координаты родительского Group
+            relX = node.x - parentX;
+            relY = node.y - parentY;
+        } else {
+            // Для Frame и прочих: координаты детей уже относительные
+            relX = node.x;
+            relY = node.y;
+        }
     }
 
     switch (node.type) {
         case 'RECTANGLE':
-            return rectangleToQML(node as RectangleNode, qtVersion, relX, relY, isRoot && node.parent?.type !== 'GROUP', isInsideLayout);
+            const rectNode = node as RectangleNode;
+            if (hasImageFill(rectNode)) {
+                return imageToQML(rectNode, qtVersion, relX, relY, isRoot && node.parent?.type !== 'GROUP', isInsideLayout, usedIds);
+            } else {
+                return rectangleToQML(rectNode, qtVersion, relX, relY, isRoot && node.parent?.type !== 'GROUP', isInsideLayout, usedIds);
+            }
         case 'TEXT':
-            return textToQML(node as TextNode, qtVersion, relX, relY, isRoot && node.parent?.type !== 'GROUP', isInsideLayout);
+            return textToQML(node as TextNode, qtVersion, relX, relY, isRoot && node.parent?.type !== 'GROUP', isInsideLayout, usedIds);
         case 'LINE':
-            return lineToQML(node as LineNode, qtVersion, relX, relY, isRoot && node.parent?.type !== 'GROUP', isInsideLayout);
+            return lineToQML(node as LineNode, qtVersion, relX, relY, isRoot && node.parent?.type !== 'GROUP', isInsideLayout, usedIds);
         case 'ELLIPSE':
-            return ellipseToQML(node as EllipseNode, qtVersion, relX, relY, isRoot && node.parent?.type !== 'GROUP', isInsideLayout);
+            return ellipseToQML(node as EllipseNode, qtVersion, relX, relY, isRoot && node.parent?.type !== 'GROUP', isInsideLayout, usedIds);
+        case 'VECTOR':
+        case 'BOOLEAN_OPERATION':
+        case 'STAR':
+        case 'POLYGON':
+            return vectorToQMLImage(node, qtVersion, relX, relY, isRoot && node.parent?.type !== 'GROUP', isInsideLayout, usedIds);
         case 'FRAME':
         case 'GROUP':
-            return frameToQML(node as FrameNode | GroupNode, qtVersion, relX, relY, isRoot, isInsideLayout);
+            return frameToQML(node as FrameNode | GroupNode, qtVersion, relX, relY, isRoot, isInsideLayout, usedIds);
         default:
-            return null;
+            const unsupportedComment = `\n    // Unsupported node: "${node.name}" (type: ${node.type})\n    // This element was not converted. Consider manual implementation.\n\n`;
+            console.warn(`Unsupported node type: ${node.type} (name: ${node.name})`);
+            return unsupportedComment;
     }
 }
 
@@ -463,9 +639,10 @@ function frameToQML(
     relX: number = 0,
     relY: number = 0,
     isRoot: boolean = false,
-    isInsideLayout: boolean = false
+    isInsideLayout: boolean = false,
+    usedIds: Set<string>
 ): string {
-    const idName = cleanNodeName(node.name);
+    const idName = generateUniqueId(node.name, usedIds);
 
     let hasAutoLayout = false;
     if (node.type === 'FRAME') {
@@ -474,46 +651,35 @@ function frameToQML(
     }
 
     if (hasAutoLayout) {
-        return autoLayoutToQML(node as FrameNode, qtVersion, relX, relY, isRoot, isInsideLayout);
+        return autoLayoutToQML(node as FrameNode, qtVersion, relX, relY, isRoot, isInsideLayout, usedIds);
     }
 
     let qml = `Item {\n`;
     qml += `    id: ${idName}\n`;
-
-    // Координаты добавляем, только если НЕ внутри Layout
+    if (node.type === 'GROUP') {
+        qml += `    // NOTE: Group support is limited. Consider converting to Frame.\n`;
+    }
     if (!isInsideLayout && !isRoot) {
         qml += `    x: ${relX}\n`;
         qml += `    y: ${relY}\n`;
     }
-
     qml += `    width: ${node.width}\n`;
     qml += `    height: ${node.height}\n`;
 
+    console.log("Node data:", node);
     if (node.children && node.children.length > 0) {
-        qml += `\n    // Children\n`;
         for (const child of node.children) {
-            const childQML = generateQMLForNode(child, qtVersion, node.x, node.y, false, isInsideLayout);
+            const childQML = generateQMLForNode(child, qtVersion, node.x, node.y, false, isInsideLayout, usedIds);
             if (childQML) {
                 const indentedQML = childQML.split('\n').map(line => '    ' + line).join('\n');
                 qml += indentedQML;
+                if (!qml.endsWith('\n')) qml += '\n';
             }
         }
     }
 
     qml += `}\n`;
     return qml;
-}
-
-function getRequiredImports(qmlCode: string, qtVersion: string, hasLayouts: boolean = false): string {
-    let imports = `import QtQuick ${qtVersion}\n`;
-    // Добавляем импорт Layouts, если в коде есть RowLayout или ColumnLayout
-    if (hasLayouts || qmlCode.includes('RowLayout') || qmlCode.includes('ColumnLayout')) {
-        imports += `import QtQuick.Layouts ${qtVersion === '5.15' ? '1.15' : qtVersion}\n`;
-    }
-    if (qmlCode.includes('DropShadow')) {
-        imports += 'import QtGraphicalEffects 1.15\n';
-    }
-    return imports;
 }
 
 // ========== ОСНОВНОЙ КОД ПЛАГИНА ==========
@@ -534,9 +700,9 @@ figma.ui.onmessage = (msg) => {
 
         const node = selection[0];
         let info = `Выбран: ${node.name} (${node.type})\n\n`;
-        let qml = '';
 
-        qml = generateQMLForNode(node, qtVersion) || '';
+        const usedIds = new Set<string>();
+        let qml = generateQMLForNode(node, qtVersion, 0, 0, true, false, usedIds) || '';
 
         if (qml) {
             info += `✅ ${node.type} → QML:\n\n`;

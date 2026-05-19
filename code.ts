@@ -36,7 +36,7 @@ function getRequiredImports(qmlCode: string, qtVersion: string, hasLayouts: bool
 }
 
 function injectLayoutAlignment(childQML: string, alignment: string): string {
-    const lines = childQML.split('\n');
+    const lines = childQML.split('\n').map(line => line.trimEnd());
     for (let i = lines.length - 1; i >= 0; i--) {
         if (lines[i].trim() === '}') {
             lines.splice(i, 0, `    Layout.alignment: ${alignment}`);
@@ -524,7 +524,7 @@ function vectorToQMLImage(
     qml += `    width: ${node.width}\n`;
     qml += `    height: ${node.height}\n`;
 
-    const suggestedName = sanitizeName(node.name) || 'vector';
+    const suggestedName = idName;
     qml += `    // Export vector from Figma as SVG and place in 'images/' folder\n`;
     qml += `    // Right-click on "${node.name}" → Export → SVG\n`;
     qml += `    source: "images/${suggestedName}.svg"\n`;
@@ -568,8 +568,14 @@ function autoLayoutToQML(
             let childQML = generateQMLForNode(child, qtVersion, node.x, node.y, false, true, usedIds);
             if (childQML) {
                 childQML = injectLayoutAlignment(childQML, alignment);
-                const indentedQML = childQML.split('\n').map(line => '    ' + line).join('\n');
+                // Убираем лишние пробелы в конце каждой строки и добавляем отступ
+                const indentedQML = childQML.split('\n')
+                    .map(line => line.trimEnd())          // убираем пробелы в конце
+                    .map(line => '    ' + line)           // добавляем 4 пробела
+                    .join('\n');
                 qml += indentedQML;
+                // Добавляем перевод строки после элемента, если его нет
+                if (!qml.endsWith('\n')) qml += '\n';
             }
         }
     }
@@ -666,12 +672,14 @@ function frameToQML(
     qml += `    width: ${node.width}\n`;
     qml += `    height: ${node.height}\n`;
 
-    console.log("Node data:", node);
     if (node.children && node.children.length > 0) {
         for (const child of node.children) {
             const childQML = generateQMLForNode(child, qtVersion, node.x, node.y, false, isInsideLayout, usedIds);
             if (childQML) {
-                const indentedQML = childQML.split('\n').map(line => '    ' + line).join('\n');
+                const indentedQML = childQML.split('\n')
+                    .map(line => line.trimEnd())          // убираем пробелы в конце
+                    .map(line => '    ' + line)           // добавляем 4 пробела
+                    .join('\n');
                 qml += indentedQML;
                 if (!qml.endsWith('\n')) qml += '\n';
             }

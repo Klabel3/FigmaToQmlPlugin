@@ -3,10 +3,16 @@
     "target": "ES6",
     "strict": true,
     "moduleResolution": "bundler",
-    "types": ["@figma/plugin-typings"],
-    "lib": ["ES2017"],
+    "types": [
+      "@figma/plugin-typings"
+    ],
+    "lib": [
+      "ES2019"
+    ],
     "skipLibCheck": true,
     "ignoreDeprecations": "6.0"
   },
-  "include": ["./code.ts"]
+  "include": [
+    "./code.ts"
+  ]
 }
